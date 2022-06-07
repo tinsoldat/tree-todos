@@ -1,0 +1,21 @@
+$border: 1px solid gray
+
+.todos
+  display: flex
+  width: 800px
+  margin: auto
+  flex-direction: column
+
+.list
+  display: flex
+  flex-direction: column
+  gap: 20px
+  --indent: min(30px, calc( 90px / var(--levels) ))
+
+.todo, .editor
+  height: 60px
+  display: flex
+  justify-content: space-between
+  align-items: center
+  border: $border
+  margin-left: calc( var(--indent) * var(--level) )

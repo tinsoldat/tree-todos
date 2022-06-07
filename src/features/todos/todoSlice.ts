@@ -14,32 +14,43 @@ export interface ITodo {
   isRemoved?: boolean;
 }
 
-const initialState: ITodo[] = JSON.parse(localStorage.getItem('todos') || '[]');
-
-// (): ITodo[] => {
-//   const serializedTodos = localStorage.getItem('todos');
-//   return serializedTodos ? JSON.parse(serializedTodos) : [];
-// }
+const initialState = (): ITodo[] => {
+  const serializedTodos = localStorage.getItem('todos');
+  return serializedTodos ? JSON.parse(serializedTodos) : [];
+}
 
 export const todoSlice = createSlice({
   name: 'todos',
   initialState,
   reducers: {
-    add: (state, action: PayloadAction<{ text: string, parentId: string, level: number, color?: string }>) => {
-      const { text, parentId, level, color } = action.payload;
+    add: (state, action: PayloadAction<{ text: string, parentId: string, color?: string }>) => {
+      const addToEnd = false; //FIXME add as an option
+
+      const { text, parentId, color } = action.payload;
       const newTodo: ITodo = {
         id: uuidv4(),
         parentId,
-        level,
+        level: 0,
         text,
         status: "none",
         color: color,
         isSelected: false,
         isExpanded: true,
       };
+      if (parentId === 'root') {
+        state.push(newTodo);
+        return
+      }
       const parentIndex = state.findIndex(todo => todo.id === parentId);
-      const lastChildIndex = state.findIndex((todo, i) => (i > parentIndex && todo.level < level) || i === state.length);
-      state.splice(lastChildIndex, 0, newTodo);
+      const level = state[parentIndex].level;
+      newTodo.level = level;
+      let index: number;
+      if (addToEnd) {
+        index = state.findIndex((todo, i) => (i > parentIndex && todo.level < level) || i === state.length) + 1;
+      } else {
+        index = parentIndex + 1
+      }
+      state.splice(index, 0, newTodo);
     },
     remove: (state, action: PayloadAction<{ todoId: string }>) => {
       const todoIndex = state.findIndex(todo => todo.id === action.payload.todoId);
