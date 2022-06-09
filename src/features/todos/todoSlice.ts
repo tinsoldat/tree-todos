@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { v4 as uuidv4 } from 'uuid';
 import { RootState } from "../../app/store";
 
+const ADD_TO_END = false; //TODO add as an option
+
 export interface ITodo {
   id: string;
   parentId: string;
@@ -24,8 +26,6 @@ export const todoSlice = createSlice({
   initialState,
   reducers: {
     add: (state, action: PayloadAction<{ parentId: string }>) => {
-      const addToEnd = false; //FIXME add as an option
-
       const { parentId } = action.payload;
       const newTodo: ITodo = {
         id: uuidv4(),
@@ -47,7 +47,7 @@ export const todoSlice = createSlice({
       const level = state[parentIndex].level + 1;
       newTodo.level = level;
       let index: number;
-      if (addToEnd) {
+      if (ADD_TO_END) {
         index = state.findIndex((todo, i) => (i > parentIndex && todo.level < level) || i === state.length) + 1;
       } else {
         index = parentIndex + 1;
@@ -69,7 +69,40 @@ export const todoSlice = createSlice({
         }
       }
     },
-    edit: (state, action: PayloadAction<{ todoId: string, text?: string}>) => {
+    move: (state, action: PayloadAction<{ todoId: string, prevId?: string, nextId?: string, parentId?: string }>) => {
+      const { todoId, prevId, nextId, parentId } = action.payload;
+      const todoIndex = state.findIndex(todo => todo.id === todoId);
+      if (todoIndex < 0) return;
+      const todo = state[todoIndex];
+      state.splice(todoIndex, 1);
+      let newIndex = state.findIndex(todo => todo.id === (prevId || nextId || parentId));
+      const host = state[newIndex];
+      if (nextId || parentId) newIndex += 1;
+      //decrease the indents of all children
+      for (let i = todoIndex; i < state.length; i++) {
+        const cur = state[i];
+        if (cur.level > todo.level) {
+          cur.level -= 1;
+        } else {
+          break;
+        }
+      }
+      //add after the children if needed
+      if (nextId) {
+        for (let i = newIndex; i < state.length; i++) {
+          const cur = state[i];
+          if (cur.level > todo.level) {
+            newIndex += 1;
+          } else {
+            break;
+          }
+        }
+      }
+
+      todo.level = parentId ? host.level + 1 : host.level;
+      state.splice(newIndex, 0, todo);
+    },
+    edit: (state, action: PayloadAction<{ todoId: string, text?: string }>) => {
       const { todoId, text } = action.payload;
       const todo = state.find(todo => todo.id === todoId);
       if (!todo) return;
@@ -102,7 +135,7 @@ export const todoSlice = createSlice({
   },
 });
 
-export const { add, remove, edit, toggleStatus } = todoSlice.actions;
+export const { add, remove, move, edit, toggleStatus } = todoSlice.actions;
 
 export const selectTodos = (state: RootState) => state.todos.filter(todo => !todo.isRemoved);
 

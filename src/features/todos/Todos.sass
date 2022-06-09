@@ -9,16 +9,42 @@ $border: 1px solid gray
 .list
   display: flex
   flex-direction: column
-  gap: 20px
   --indent: min(30px, calc( 90px / var(--levels) ))
 
 .todo
   height: 60px
+  position: relative
   display: flex
   justify-content: space-between
   align-items: center
   border: $border
   margin-left: calc( var(--indent) * var(--level) )
+  &.before::before,
+  &.after::after
+    content: ''
+    position: absolute
+    width: 100%
+    height: 50%
+    background-color: #0f04
+    z-index: 100
+  &.target::before
+    top: -30%
+  &.target::after
+    bottom: -30%
+  &.to
+    background-color: #ff04
+
+//FIXME add dynamically in js
+[data-level="1"]
+  --level: 1
+[data-level="2"]
+  --level: 2
+[data-level="3"]
+  --level: 3
+[data-level="4"]
+  --level: 4
+[data-level="5"]
+  --level: 5
 
 .editor
   display: inline

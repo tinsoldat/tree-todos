@@ -1,31 +1,32 @@
-import React, { FC, CSSProperties, useEffect, FormEventHandler, KeyboardEventHandler } from 'react';
+import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler } from 'react';
 
 import { useAppSelector, useAppDispatch } from "../../app/hooks";
-import { add, toggleStatus, ITodo, remove, edit, selectTodos } from "./todoSlice";
+import { add, toggleStatus, ITodo, remove, move, edit, selectTodos } from "./todoSlice";
 import './Todos.sass';
 import classNames from 'classnames';
 
 export const List = () => {
-
+  const dispatch = useAppDispatch();
   const todos = useAppSelector(selectTodos);
   //save to local storage on page refresh/close
   useEffect(() => {
     function saveTodos() {
-      const serializedTodos = JSON.stringify(todos);
+      const serializedTodos = JSON.stringify(todos.filter(todo => !todo.isRemoved));
       localStorage.setItem('todos', serializedTodos);
     }
     window.addEventListener('beforeunload', saveTodos);
     return () => window.removeEventListener('beforeunload', saveTodos);
   });
-  //FIXME why is it done here?
   //set max level for indent calculation
-  const levels = todos.reduce((acc, cur) => cur.level > acc ? acc = cur.level : acc, 0);
+  const levels = todos.reduce((max, cur) => !cur.isRemoved && cur.level > max ? max = cur.level : max, 0);
   document.documentElement.style.setProperty('--levels', levels.toString());
+
   return (
     <div className='todos'>
       <div className="todos__list list">
         {todos.map(todo => <Todo key={todo.id} todo={todo} />)}
       </div>
+      <button className='todo__btn' onClick={() => dispatch(add({ parentId: 'root' }))}>+</button>
     </div>
   );
 }
@@ -44,18 +45,76 @@ export const Todo: FC<TodoProps> = ({ todo }) => {
     isSelected,
     isEditing,
   } = todo;
-  const className = classNames(
-    'todo',
-    { 'selected': isSelected }
-  );
+
+  const dragger = <button className="todo__btn draggable" draggable onDragStart={e => {
+    e.dataTransfer.setData('text/plain', id);
+    const self = e.target as HTMLButtonElement;
+    const parent = self.parentElement as HTMLDivElement;
+    document.querySelector('.dragged')?.classList.remove('dragged');
+    parent.classList.add('dragged');
+    const offsetX = e.clientX - parent.offsetLeft;
+    const offsetY = e.clientY - parent.offsetTop;
+    e.dataTransfer.setDragImage(parent, offsetX, offsetY);
+    e.dataTransfer.dropEffect = 'move';
+  }}>☰</button>
 
   return (
-    <div className={className} data-level={level} style={{ '--level': level } as CSSProperties}>
+    <div
+      className={classNames('todo', status, { 'selected': isSelected })}
+      id={id}
+      data-level={level}
+      onDrop={e => {
+        e.preventDefault();
+        const target = e.target as HTMLElement;
+        const todoId = e.dataTransfer.getData('text/plain');
+        if (todoId === id) return;
+        const options: Parameters<typeof move>[0] = { todoId };
+        //FIXME get rid of hardcoded values
+        let append: 'before' | 'after' | 'to';
+        
+        if (target.classList.contains('before')) append = 'before';
+        else if (target.classList.contains('after')) append = 'after';
+        else append = 'to';
+        target.classList.remove('target', 'before', 'after', 'to');
+        //if the host node has children, add to it as a child, hook on isExpanded later
+        if (target.nextElementSibling?.getAttribute('data-level') || -1 > level) append = 'to';
+        switch (append) {
+          case 'before':
+            options.prevId = id;
+            break;
+          case 'after':
+            options.nextId = id;
+            break;
+          case 'to':
+            options.parentId = id;
+            break;
+          default:
+            return;
+        }
+
+        dispatch(move(options));
+      }}
+      onDragOver={e => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('dragged')) return;
+        e.preventDefault();
+        const ratio = (e.clientY - target.offsetTop) / target.clientHeight;
+        let append: 'before' | 'after' | 'to';
+        if (ratio < .15) append = 'before';
+        else if (ratio > .85) append = 'after';
+        else append = 'to';
+        target.classList.remove('before', 'after', 'to');
+        target.classList.add(append);
+      }}
+      onDragEnter={e => { const target = e.target as HTMLElement; target.classList.add('target') }}
+      onDragLeave={e => { const target = e.target as HTMLElement; target.classList.remove('target', 'before', 'after', 'to') }}
+    >
+      {dragger}
       <div className="todo__text">
         {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
         {isEditing
-        ? <Editor key='editor' todo={todo} />
-      : text}
+          ? <Editor key='editor' todo={todo} />
+          : text}
       </div>
       <div className="todo__controls">
         <button className="todo__btn" onClick={() => dispatch(edit({ todoId: id }))}>✎</button>
@@ -95,8 +154,6 @@ export const Editor: FC<EditorProps> = ({ todo: { id, text } }) => {
         dispatch(edit({ todoId: id, text }));
       else
         dispatch(remove({ todoId: id }));
-      // const target = e.target as HTMLElement;
-      // target.blur();
     }
   }
 
