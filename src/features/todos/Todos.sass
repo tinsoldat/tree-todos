@@ -12,10 +12,15 @@ $border: 1px solid gray
   gap: 20px
   --indent: min(30px, calc( 90px / var(--levels) ))
 
-.todo, .editor
+.todo
   height: 60px
   display: flex
   justify-content: space-between
   align-items: center
   border: $border
   margin-left: calc( var(--indent) * var(--level) )
+
+.editor
+  display: inline
+  &__form
+    display: inline

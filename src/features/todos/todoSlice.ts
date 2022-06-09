@@ -8,9 +8,9 @@ export interface ITodo {
   level: number;
   text: string;
   status: 'completed' | 'active' | 'none';
-  color?: string;
   isSelected: boolean;
   isExpanded: boolean;
+  isEditing: boolean;
   isRemoved?: boolean;
 }
 
@@ -23,32 +23,34 @@ export const todoSlice = createSlice({
   name: 'todos',
   initialState,
   reducers: {
-    add: (state, action: PayloadAction<{ text: string, parentId: string, color?: string }>) => {
+    add: (state, action: PayloadAction<{ parentId: string }>) => {
       const addToEnd = false; //FIXME add as an option
 
-      const { text, parentId, color } = action.payload;
+      const { parentId } = action.payload;
       const newTodo: ITodo = {
         id: uuidv4(),
         parentId,
         level: 0,
-        text,
+        text: '',
         status: "none",
-        color: color,
         isSelected: false,
+        isEditing: true,
         isExpanded: true,
       };
+
       if (parentId === 'root') {
         state.push(newTodo);
-        return
+        return;
       }
+
       const parentIndex = state.findIndex(todo => todo.id === parentId);
-      const level = state[parentIndex].level;
+      const level = state[parentIndex].level + 1;
       newTodo.level = level;
       let index: number;
       if (addToEnd) {
         index = state.findIndex((todo, i) => (i > parentIndex && todo.level < level) || i === state.length) + 1;
       } else {
-        index = parentIndex + 1
+        index = parentIndex + 1;
       }
       state.splice(index, 0, newTodo);
     },
@@ -66,6 +68,17 @@ export const todoSlice = createSlice({
           break;
         }
       }
+    },
+    edit: (state, action: PayloadAction<{ todoId: string, text?: string}>) => {
+      const { todoId, text } = action.payload;
+      const todo = state.find(todo => todo.id === todoId);
+      if (!todo) return;
+      if (!todo.isEditing) {
+        todo.isEditing = true;
+        return;
+      }
+      todo.text = text || todo.text;
+      todo.isEditing = false;
     },
     toggleStatus: (state, action: PayloadAction<{ todoId: string }>) => {
       const todo = state.find(todo => todo.id === action.payload.todoId);
@@ -89,7 +102,7 @@ export const todoSlice = createSlice({
   },
 });
 
-export const { add, remove, toggleStatus } = todoSlice.actions;
+export const { add, remove, edit, toggleStatus } = todoSlice.actions;
 
 export const selectTodos = (state: RootState) => state.todos.filter(todo => !todo.isRemoved);
 
