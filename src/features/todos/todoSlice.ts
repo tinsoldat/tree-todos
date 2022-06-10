@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { v4 as uuidv4 } from 'uuid';
 import { RootState } from "../../app/store";
 
-const ADD_TO_END = false; //TODO add as an option
+const ADD_TO_END = false; //TODO implement adding at the end of a list of children
 
 export interface ITodo {
   id: string;
@@ -10,7 +10,6 @@ export interface ITodo {
   level: number;
   text: string;
   status: 'completed' | 'active' | 'none';
-  isSelected: boolean;
   isExpanded: boolean;
   isEditing: boolean;
   isRemoved?: boolean;
@@ -33,7 +32,6 @@ export const todoSlice = createSlice({
         level: 0,
         text: '',
         status: "none",
-        isSelected: false,
         isEditing: true,
         isExpanded: true,
       };
@@ -76,7 +74,9 @@ export const todoSlice = createSlice({
       const todo = state[todoIndex];
       state.splice(todoIndex, 1);
       let newIndex = state.findIndex(todo => todo.id === (prevId || nextId || parentId));
+      console.log(newIndex);
       const host = state[newIndex];
+      todo.level = parentId ? host.level + 1 : host.level;
       if (nextId || parentId) newIndex += 1;
       //decrease the indents of all children
       for (let i = todoIndex; i < state.length; i++) {
@@ -99,7 +99,6 @@ export const todoSlice = createSlice({
         }
       }
 
-      todo.level = parentId ? host.level + 1 : host.level;
       state.splice(newIndex, 0, todo);
     },
     edit: (state, action: PayloadAction<{ todoId: string, text?: string }>) => {

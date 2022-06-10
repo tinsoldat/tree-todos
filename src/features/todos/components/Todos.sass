@@ -13,28 +13,29 @@ $border: 1px solid gray
 
 .todo
   height: 60px
-  position: relative
   display: flex
   justify-content: space-between
   align-items: center
   border: $border
   margin-left: calc( var(--indent) * var(--level) )
-  &.before::before,
-  &.after::after
-    content: ''
-    position: absolute
-    width: 100%
-    height: 50%
-    background-color: #0f04
-    z-index: 100
-  &.target::before
-    top: -30%
-  &.target::after
-    bottom: -30%
-  &.to
-    background-color: #ff04
 
-//FIXME add dynamically in js
+.drop-areas
+  display: none
+  position: absolute
+  flex-direction: column
+  width: 100%
+  height: 100%
+  & .drag-area
+    flex-grow: 1
+    background-color: #f004
+.draggable__container
+  position: relative
+  &[data-selected="true"] .drop-areas
+    position: absolute
+    top: 0
+    display: flex
+
+//FIXME manage dynamically in js
 [data-level="1"]
   --level: 1
 [data-level="2"]
@@ -50,3 +51,6 @@ $border: 1px solid gray
   display: inline
   &__form
     display: inline
+
+.draggable
+  cursor: grab

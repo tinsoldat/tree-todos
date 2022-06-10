@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { List } from './features/todos/Todos';
+import { List } from './features/todos/components/List';
 
 function App() {
 
