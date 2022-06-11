@@ -1,9 +1,8 @@
-import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler } from 'react';
+import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler, useState } from 'react';
 
 import { useAppSelector, useAppDispatch } from "../../app/hooks";
 import { add, toggleStatus, ITodo, remove, move, edit, selectTodos } from "./todoSlice";
 import './Todos.sass';
-import classNames from 'classnames';
 
 export const List = () => {
   const dispatch = useAppDispatch();
@@ -35,57 +34,70 @@ interface TodoProps {
   todo: ITodo;
 }
 
-export const Todo: FC<TodoProps> = ({ todo }) => {
-  const dispatch = useAppDispatch();
-  const {
+interface TodoData {
+  status: ITodo['status'];
+  level: ITodo['level'];
+  selected: boolean;
+  drop: DropAreas | undefined;
+}
+
+enum DropAreas {
+  before = 'before', after = 'after', to = 'to'
+}
+
+export const Todo: FC<TodoProps> = ({
+  todo: {
     id,
     level,
     text,
     status,
-    isSelected,
     isEditing,
-  } = todo;
+  }
+}) => {
+  const [selected, setSelected] = useState(false);
+  const [drop, setDrop] = useState<DropAreas>();
+  const dispatch = useAppDispatch();
 
-  const dragger = <button className="todo__btn draggable" draggable onDragStart={e => {
+  const data: TodoData = {
+    status,
+    level,
+    selected,
+    drop,
+  }
+
+  const dragger = <div className="draggable" draggable onDragStart={e => {
     e.dataTransfer.setData('text/plain', id);
     const self = e.target as HTMLButtonElement;
     const parent = self.parentElement as HTMLDivElement;
-    document.querySelector('.dragged')?.classList.remove('dragged');
-    parent.classList.add('dragged');
     const offsetX = e.clientX - parent.offsetLeft;
     const offsetY = e.clientY - parent.offsetTop;
     e.dataTransfer.setDragImage(parent, offsetX, offsetY);
     e.dataTransfer.dropEffect = 'move';
-  }}>☰</button>
+  }}>☰</div>
 
   return (
     <div
-      className={classNames('todo', status, { 'selected': isSelected })}
-      id={id}
-      data-level={level}
+      className='todo'
+      tabIndex={0}
+      {...data}
       onDrop={e => {
         e.preventDefault();
-        const target = e.target as HTMLElement;
+        setSelected(false);
+        setDrop(undefined);
+
         const todoId = e.dataTransfer.getData('text/plain');
         if (todoId === id) return;
+
         const options: Parameters<typeof move>[0] = { todoId };
-        //FIXME get rid of hardcoded values
-        let append: 'before' | 'after' | 'to';
-        
-        if (target.classList.contains('before')) append = 'before';
-        else if (target.classList.contains('after')) append = 'after';
-        else append = 'to';
-        target.classList.remove('target', 'before', 'after', 'to');
-        //if the host node has children, add to it as a child, hook on isExpanded later
-        if (target.nextElementSibling?.getAttribute('data-level') || -1 > level) append = 'to';
-        switch (append) {
-          case 'before':
+
+        switch (drop) {
+          case DropAreas.before:
             options.prevId = id;
             break;
-          case 'after':
+          case DropAreas.after:
             options.nextId = id;
             break;
-          case 'to':
+          case DropAreas.to:
             options.parentId = id;
             break;
           default:
@@ -95,25 +107,59 @@ export const Todo: FC<TodoProps> = ({ todo }) => {
         dispatch(move(options));
       }}
       onDragOver={e => {
-        const target = e.target as HTMLElement;
-        if (target.classList.contains('dragged')) return;
         e.preventDefault();
+
+        const target = e.target as HTMLElement;
         const ratio = (e.clientY - target.offsetTop) / target.clientHeight;
-        let append: 'before' | 'after' | 'to';
-        if (ratio < .15) append = 'before';
-        else if (ratio > .85) append = 'after';
-        else append = 'to';
-        target.classList.remove('before', 'after', 'to');
-        target.classList.add(append);
+
+        let append: DropAreas;
+        if (ratio < .33) append = DropAreas.before;
+        else if (ratio > .67) append = DropAreas.after;
+        else append = DropAreas.to;
+
+        setDrop(append);
       }}
-      onDragEnter={e => { const target = e.target as HTMLElement; target.classList.add('target') }}
-      onDragLeave={e => { const target = e.target as HTMLElement; target.classList.remove('target', 'before', 'after', 'to') }}
+      onDragEnter={e => !selected && setSelected(true)}
+      onDragLeave={e => { setSelected(false); setDrop(undefined) }}
+      onDragEnd={e => { setSelected(false); setDrop(undefined) }}
+      onClick={e => { const target = e.target as HTMLDivElement; target.focus(); }}
+      onKeyDown={e => {
+        const target = e.target as HTMLDivElement;
+        if (e.currentTarget !== target) return;
+        switch (e.key) {
+          case 'ArrowDown':
+            const next = target.nextElementSibling as HTMLDivElement;
+            next?.focus();
+            break;
+          case 'ArrowUp':
+            const prev = target.previousElementSibling as HTMLDivElement;
+            prev?.focus();
+            break;
+          case 'ArrowLeft':
+            //TODO Collapse
+            break;
+          case 'ArrowRight':
+            //TODO Expand
+            break;
+          case 'n':
+            dispatch(add({ parentId: id }));
+            break;
+          case 'e':
+            dispatch(edit({ todoId: id }));
+            break;
+          case 'd':
+            dispatch(remove({ todoId: id }));
+            break;
+          default:
+            break;
+        }
+      }}
     >
       {dragger}
       <div className="todo__text">
         {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
         {isEditing
-          ? <Editor key='editor' todo={todo} />
+          ? <Editor key='editor' id={id} text={text} />
           : text}
       </div>
       <div className="todo__controls">
@@ -129,16 +175,12 @@ export const Todo: FC<TodoProps> = ({ todo }) => {
 }
 
 interface EditorProps {
-  todo: ITodo;
+  id: ITodo['id'];
+  text: ITodo['text'];
 }
 
-export const Editor: FC<EditorProps> = ({ todo: { id, text } }) => {
+export const Editor: FC<EditorProps> = ({ id, text }) => {
   const dispatch = useAppDispatch();
-  //focus on self 
-  useEffect(() => {
-    const el = document.querySelector('#editor__text') as HTMLElement;
-    el?.focus();
-  });
 
   const submitHandler: FormEventHandler = (e) => {
     e.preventDefault();
@@ -160,7 +202,7 @@ export const Editor: FC<EditorProps> = ({ todo: { id, text } }) => {
   return (
     <div className='editor'>
       <form className='editor__form' action="/" autoComplete='off' onSubmit={submitHandler}>
-        <input className='editor__text' type='text' name="text" id="editor__text" placeholder={text} defaultValue={text} onKeyDown={escHandler} />
+        <input className='editor__text' autoFocus type='text' name="text" id="editor__text" placeholder={text} defaultValue={text} onKeyDown={escHandler} />
       </form>
     </div>
   );

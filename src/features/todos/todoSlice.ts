@@ -10,7 +10,6 @@ export interface ITodo {
   level: number;
   text: string;
   status: 'completed' | 'active' | 'none';
-  isSelected: boolean;
   isExpanded: boolean;
   isEditing: boolean;
   isRemoved?: boolean;
@@ -33,7 +32,6 @@ export const todoSlice = createSlice({
         level: 0,
         text: '',
         status: "none",
-        isSelected: false,
         isEditing: true,
         isExpanded: true,
       };
