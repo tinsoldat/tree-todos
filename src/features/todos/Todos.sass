@@ -12,8 +12,6 @@ $border: 1px solid gray
   --indent: min(30px, calc( 90px / var(--levels) ))
 
 .todo
-  &:focus
-    outline: 2px solid Highlight
   height: 60px
   position: relative
   display: flex
@@ -21,22 +19,29 @@ $border: 1px solid gray
   gap: 10px
   border: $border
   margin-left: calc( var(--indent) * var(--level) )
-  &::after
+  &:focus
+    outline: 2px solid Highlight
+  & > &__pointer
     position: absolute
+    display: none
     width: 100%
     height: 20px
     background-color: #0f03
-  &[drop]::after
-    content: '_'
-  &[drop='after']::after
-    bottom: -11px
-  &[drop='before']::after
-    top: -11px
-  &[drop='to']::after
+  &[drop] *
+    pointer-events: none
+  &[drop] > &__pointer
+    display: block
+  &[drop='after'] > &__pointer
+    bottom: -9px
+  &[drop='before'] > &__pointer
+    top: -9px
+  &[drop='to'] > &__pointer
+    height: 42px
   .draggable
     cursor: grab
   &__controls
     margin-left: auto
+    flex-shrink: 0
 
 //FIXME add dynamically in js
 [level="1"]

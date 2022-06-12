@@ -1,4 +1,4 @@
-import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler, useState } from 'react';
+import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler, useState, DragEvent } from 'react';
 
 import { useAppSelector, useAppDispatch } from "../../app/hooks";
 import { add, toggleStatus, ITodo, remove, move, edit, selectTodos } from "./todoSlice";
@@ -38,10 +38,10 @@ interface TodoData {
   status: ITodo['status'];
   level: ITodo['level'];
   selected: boolean;
-  drop: DropAreas | undefined;
+  drop?: DropAreas;
 }
 
-enum DropAreas {
+export enum DropAreas {
   before = 'before', after = 'after', to = 'to'
 }
 
@@ -54,15 +54,45 @@ export const Todo: FC<TodoProps> = ({
     isEditing,
   }
 }) => {
-  const [selected, setSelected] = useState(false);
+  // const [selected, setSelected] = useState(false);
   const [drop, setDrop] = useState<DropAreas>();
   const dispatch = useAppDispatch();
 
   const data: TodoData = {
     status,
     level,
-    selected,
+    selected: false,
     drop,
+  }
+
+  const dragAndDropHandlers = {
+    onDrop: (e: DragEvent) => {
+      e.preventDefault();
+      setDrop(undefined);
+
+      const todoId = e.dataTransfer.getData('text/plain');
+      if (todoId === id) return;
+
+      dispatch(move({ todoId, hostId: id, type: drop || DropAreas.to }));
+    },
+    onDragOver: (e: DragEvent) => {
+      e.preventDefault();
+
+      const target = e.target as HTMLElement;
+      const rect = target.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const ratio = y / target.clientHeight;
+
+      //TODO get rid of magic numbers, connect to CSS
+      let append: DropAreas;
+      if (ratio < .15) append = DropAreas.before
+      else if (ratio > .85) append = DropAreas.after
+      else append = DropAreas.to
+
+      setDrop(append);
+    },
+    onDragLeave: (e: DragEvent) => setDrop(undefined),
+    onDragEnd: (e: DragEvent) => setDrop(undefined),
   }
 
   const dragger = <div className="draggable" draggable onDragStart={e => {
@@ -80,58 +110,20 @@ export const Todo: FC<TodoProps> = ({
       className='todo'
       tabIndex={0}
       {...data}
-      onDrop={e => {
-        e.preventDefault();
-        setSelected(false);
-        setDrop(undefined);
-
-        const todoId = e.dataTransfer.getData('text/plain');
-        if (todoId === id) return;
-
-        const options: Parameters<typeof move>[0] = { todoId };
-
-        switch (drop) {
-          case DropAreas.before:
-            options.prevId = id;
-            break;
-          case DropAreas.after:
-            options.nextId = id;
-            break;
-          case DropAreas.to:
-            options.parentId = id;
-            break;
-          default:
-            return;
-        }
-
-        dispatch(move(options));
-      }}
-      onDragOver={e => {
-        e.preventDefault();
-
-        const target = e.target as HTMLElement;
-        const ratio = (e.clientY - target.offsetTop) / target.clientHeight;
-
-        let append: DropAreas;
-        if (ratio < .33) append = DropAreas.before;
-        else if (ratio > .67) append = DropAreas.after;
-        else append = DropAreas.to;
-
-        setDrop(append);
-      }}
-      onDragEnter={e => !selected && setSelected(true)}
-      onDragLeave={e => { setSelected(false); setDrop(undefined) }}
-      onDragEnd={e => { setSelected(false); setDrop(undefined) }}
+      {...dragAndDropHandlers}
       onClick={e => { const target = e.target as HTMLDivElement; target.focus(); }}
       onKeyDown={e => {
         const target = e.target as HTMLDivElement;
         if (e.currentTarget !== target) return;
+        let prevent = true;
         switch (e.key) {
           case 'ArrowDown':
+            e?.preventDefault();
             const next = target.nextElementSibling as HTMLDivElement;
             next?.focus();
             break;
           case 'ArrowUp':
+            e?.preventDefault();
             const prev = target.previousElementSibling as HTMLDivElement;
             prev?.focus();
             break;
@@ -150,18 +142,23 @@ export const Todo: FC<TodoProps> = ({
           case 'd':
             dispatch(remove({ todoId: id }));
             break;
+          case 'w':
+            dispatch(toggleStatus({ todoId: id }));
+            break;
           default:
+            prevent = false;
             break;
         }
+        if (prevent) e.preventDefault();
       }}
     >
       {dragger}
-      <div className="todo__text">
-        {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
-        {isEditing
-          ? <Editor key='editor' id={id} text={text} />
-          : text}
-      </div>
+      {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
+
+      {isEditing
+        ? <Editor key='editor' id={id} text={text} />
+        : <div className="todo__text">{text}</div>
+      }
       <div className="todo__controls">
         <button className="todo__btn" onClick={() => dispatch(edit({ todoId: id }))}>✎</button>
         <button className='todo__btn' onClick={() => dispatch(remove({ todoId: id }))}>−</button>
@@ -170,6 +167,7 @@ export const Todo: FC<TodoProps> = ({
           status === 'completed' ? '✘' : status === 'active' ? '✔' : '👁'
         }</button>
       </div>
+      <div className="todo__pointer"></div>
     </div>
   );
 }
@@ -184,6 +182,8 @@ export const Editor: FC<EditorProps> = ({ id, text }) => {
 
   const submitHandler: FormEventHandler = (e) => {
     e.preventDefault();
+    //@ts-ignore
+    e.target.parentElement.parentElement.focus();
     const data = new FormData(e.target as HTMLFormElement);
     const text = data.get('text') as string;
     text && dispatch(edit({ todoId: id, text }));
@@ -191,7 +191,10 @@ export const Editor: FC<EditorProps> = ({ id, text }) => {
 
   const escHandler: KeyboardEventHandler = e => {
     const input = e.target as HTMLInputElement;
+
     if (e.key === 'Escape') {
+      //@ts-ignore
+      input.parentElement.parentElement.parentElement?.focus();
       if (input.value)
         dispatch(edit({ todoId: id, text }));
       else
@@ -202,7 +205,7 @@ export const Editor: FC<EditorProps> = ({ id, text }) => {
   return (
     <div className='editor'>
       <form className='editor__form' action="/" autoComplete='off' onSubmit={submitHandler}>
-        <input className='editor__text' autoFocus type='text' name="text" id="editor__text" placeholder={text} defaultValue={text} onKeyDown={escHandler} />
+        <input className='editor__text' autoFocus type='text' name="text" id="editor__text" placeholder={text} defaultValue={text} onKeyUp={escHandler} />
       </form>
     </div>
   );
