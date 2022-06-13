@@ -1,7 +1,7 @@
 import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler, useState, DragEvent } from 'react';
 
 import { useAppSelector, useAppDispatch } from "../../app/hooks";
-import { add, toggleStatus, ITodo, remove, move, edit, selectTodos } from "./todoSlice";
+import { add, toggleStatus, ITodo, remove, move, edit, toggleCollapsed, selectTodos } from "./todoSlice";
 import './Todos.sass';
 
 export const List = () => {
@@ -10,14 +10,14 @@ export const List = () => {
   //save to local storage on page refresh/close
   useEffect(() => {
     function saveTodos() {
-      const serializedTodos = JSON.stringify(todos.filter(todo => !todo.isRemoved));
+      const serializedTodos = JSON.stringify(todos);
       localStorage.setItem('todos', serializedTodos);
     }
     window.addEventListener('beforeunload', saveTodos);
     return () => window.removeEventListener('beforeunload', saveTodos);
   });
   //set max level for indent calculation
-  const levels = todos.reduce((max, cur) => !cur.isRemoved && cur.level > max ? max = cur.level : max, 0);
+  const levels = todos.reduce((max, cur) => cur.level > max ? max = cur.level : max, 0);
   document.documentElement.style.setProperty('--levels', levels.toString());
 
   return (
@@ -39,6 +39,8 @@ interface TodoData {
   level: ITodo['level'];
   selected: boolean;
   drop?: DropAreas;
+  collapsed?: string;
+  hide?: string;
 }
 
 export enum DropAreas {
@@ -52,6 +54,8 @@ export const Todo: FC<TodoProps> = ({
     text,
     status,
     isEditing,
+    isCollapsed,
+    isHidden,
   }
 }) => {
   // const [selected, setSelected] = useState(false);
@@ -63,6 +67,8 @@ export const Todo: FC<TodoProps> = ({
     level,
     selected: false,
     drop,
+    collapsed: isCollapsed ? '' : undefined,
+    hide: isHidden ? '' : undefined,
   }
 
   const dragAndDropHandlers = {
@@ -95,16 +101,6 @@ export const Todo: FC<TodoProps> = ({
     onDragEnd: (e: DragEvent) => setDrop(undefined),
   }
 
-  const dragger = <div className="draggable" draggable onDragStart={e => {
-    e.dataTransfer.setData('text/plain', id);
-    const self = e.target as HTMLButtonElement;
-    const parent = self.parentElement as HTMLDivElement;
-    const offsetX = e.clientX - parent.offsetLeft;
-    const offsetY = e.clientY - parent.offsetTop;
-    e.dataTransfer.setDragImage(parent, offsetX, offsetY);
-    e.dataTransfer.dropEffect = 'move';
-  }}>☰</div>
-
   return (
     <div
       className='todo'
@@ -128,10 +124,12 @@ export const Todo: FC<TodoProps> = ({
             prev?.focus();
             break;
           case 'ArrowLeft':
-            //TODO Collapse
+            if (!isCollapsed) dispatch(toggleCollapsed({ todoId: id }));
+            //TODO else select parent
             break;
           case 'ArrowRight':
-            //TODO Expand
+            if (isCollapsed) dispatch(toggleCollapsed({ todoId: id }));
+            //TODO else select first child or do nothing
             break;
           case 'n':
             dispatch(add({ parentId: id }));
@@ -152,20 +150,33 @@ export const Todo: FC<TodoProps> = ({
         if (prevent) e.preventDefault();
       }}
     >
-      {dragger}
+      <div className="draggable" draggable
+        onDragStart={e => {
+          e.dataTransfer.setData('text/plain', id);
+          const self = e.target as HTMLButtonElement;
+          const parent = self.parentElement as HTMLDivElement;
+          const offsetX = e.clientX - parent.offsetLeft;
+          const offsetY = e.clientY - parent.offsetTop;
+          e.dataTransfer.setDragImage(parent, offsetX, offsetY);
+          e.dataTransfer.dropEffect = 'move';
+        }}>
+        ☰
+      </div>
       {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
 
       {isEditing
         ? <Editor key='editor' id={id} text={text} />
         : <div className="todo__text">{text}</div>
       }
+
       <div className="todo__controls">
         <button className="todo__btn" onClick={() => dispatch(edit({ todoId: id }))}>✎</button>
-        <button className='todo__btn' onClick={() => dispatch(remove({ todoId: id }))}>−</button>
-        <button className='todo__btn' onClick={() => dispatch(add({ parentId: id }))}>+</button>
         <button className='todo__btn' onClick={() => dispatch(toggleStatus({ todoId: id }))}>{
           status === 'completed' ? '✘' : status === 'active' ? '✔' : '👁'
         }</button>
+        <button className='todo__btn' onClick={() => dispatch(remove({ todoId: id }))}>−</button>
+        <button className='todo__btn' onClick={() => dispatch(add({ parentId: id }))}>+</button>
+        <button className="todo__btn" onClick={() => dispatch(toggleCollapsed({ todoId: id }))}>{isCollapsed ? '▼' : '—'}</button>
       </div>
       <div className="todo__pointer"></div>
     </div>
@@ -182,6 +193,7 @@ export const Editor: FC<EditorProps> = ({ id, text }) => {
 
   const submitHandler: FormEventHandler = (e) => {
     e.preventDefault();
+    //FIXME
     //@ts-ignore
     e.target.parentElement.parentElement.focus();
     const data = new FormData(e.target as HTMLFormElement);

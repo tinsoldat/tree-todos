@@ -19,6 +19,8 @@ $border: 1px solid gray
   gap: 10px
   border: $border
   margin-left: calc( var(--indent) * var(--level) )
+  &[hide]
+    display: none
   &:focus
     outline: 2px solid Highlight
   & > &__pointer
