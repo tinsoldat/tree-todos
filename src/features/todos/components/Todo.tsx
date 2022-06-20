@@ -1,34 +1,7 @@
-import React, { FC, useEffect, FormEventHandler, KeyboardEventHandler, useState, DragEvent } from 'react';
-
-import { useAppSelector, useAppDispatch } from "../../app/hooks";
-import { add, toggleStatus, ITodo, remove, move, edit, toggleCollapsed, selectTodos } from "./todoSlice";
-import './Todos.sass';
-
-export const List = () => {
-  const dispatch = useAppDispatch();
-  const todos = useAppSelector(selectTodos);
-  //save to local storage on page refresh/close
-  useEffect(() => {
-    function saveTodos() {
-      const serializedTodos = JSON.stringify(todos);
-      localStorage.setItem('todos', serializedTodos);
-    }
-    window.addEventListener('beforeunload', saveTodos);
-    return () => window.removeEventListener('beforeunload', saveTodos);
-  });
-  //set max level for indent calculation
-  const levels = todos.reduce((max, cur) => cur.level > max ? max = cur.level : max, 0);
-  document.documentElement.style.setProperty('--levels', levels.toString());
-
-  return (
-    <div className='todos'>
-      <div className="todos__list list">
-        {todos.map(todo => <Todo key={todo.id} todo={todo} />)}
-      </div>
-      <button className='todo__btn' onClick={() => dispatch(add({ parentId: 'root' }))}>+</button>
-    </div>
-  );
-}
+import { DragEvent, FC, useState } from "react";
+import { useAppDispatch } from "../../../app/hooks";
+import { Editor } from "./Editor";
+import { ITodo, move, toggleCollapsed, add, edit, remove, toggleStatus } from "../todoSlice";
 
 interface TodoProps {
   todo: ITodo;
@@ -44,7 +17,9 @@ interface TodoData {
 }
 
 export enum DropAreas {
-  before = 'before', after = 'after', to = 'to'
+  before = 'before',
+  after = 'after',
+  to = 'to',
 }
 
 export const Todo: FC<TodoProps> = ({
@@ -179,46 +154,6 @@ export const Todo: FC<TodoProps> = ({
         <button className="todo__btn" onClick={() => dispatch(toggleCollapsed({ todoId: id }))}>{isCollapsed ? '▼' : '—'}</button>
       </div>
       <div className="todo__pointer"></div>
-    </div>
-  );
-}
-
-interface EditorProps {
-  id: ITodo['id'];
-  text: ITodo['text'];
-}
-
-export const Editor: FC<EditorProps> = ({ id, text }) => {
-  const dispatch = useAppDispatch();
-
-  const submitHandler: FormEventHandler = (e) => {
-    e.preventDefault();
-    //FIXME
-    //@ts-ignore
-    e.target.parentElement.parentElement.focus();
-    const data = new FormData(e.target as HTMLFormElement);
-    const text = data.get('text') as string;
-    text && dispatch(edit({ todoId: id, text }));
-  }
-
-  const escHandler: KeyboardEventHandler = e => {
-    const input = e.target as HTMLInputElement;
-
-    if (e.key === 'Escape') {
-      //@ts-ignore
-      input.parentElement.parentElement.parentElement?.focus();
-      if (input.value)
-        dispatch(edit({ todoId: id, text }));
-      else
-        dispatch(remove({ todoId: id }));
-    }
-  }
-
-  return (
-    <div className='editor'>
-      <form className='editor__form' action="/" autoComplete='off' onSubmit={submitHandler}>
-        <input className='editor__text' autoFocus type='text' name="text" id="editor__text" placeholder={text} defaultValue={text} onKeyUp={escHandler} />
-      </form>
     </div>
   );
 }
