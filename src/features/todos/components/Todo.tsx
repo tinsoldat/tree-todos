@@ -1,4 +1,4 @@
-import { DragEvent, FC, useState } from "react";
+import { DragEventHandler, FC, useState } from "react";
 import { useAppDispatch } from "../../../app/hooks";
 import { Editor } from "./Editor";
 import { ITodo, move, toggleCollapsed, add, edit, remove, toggleStatus } from "../todoSlice";
@@ -10,7 +10,6 @@ interface TodoProps {
 interface TodoData {
   status: ITodo['status'];
   level: ITodo['level'];
-  selected: boolean;
   drop?: DropAreas;
   collapsed?: string;
   hide?: string;
@@ -33,21 +32,19 @@ export const Todo: FC<TodoProps> = ({
     isHidden,
   }
 }) => {
-  // const [selected, setSelected] = useState(false);
-  const [drop, setDrop] = useState<DropAreas>();
   const dispatch = useAppDispatch();
-
+  const [drop, setDrop] = useState<DropAreas>();
+  
   const data: TodoData = {
     status,
     level,
-    selected: false,
     drop,
     collapsed: isCollapsed ? '' : undefined,
     hide: isHidden ? '' : undefined,
   }
 
-  const dragAndDropHandlers = {
-    onDrop: (e: DragEvent) => {
+  const dragAndDropHandlers: Record<string, DragEventHandler> = {
+    onDrop: (e) => {
       e.preventDefault();
       setDrop(undefined);
 
@@ -56,7 +53,7 @@ export const Todo: FC<TodoProps> = ({
 
       dispatch(move({ todoId, hostId: id, type: drop || DropAreas.to }));
     },
-    onDragOver: (e: DragEvent) => {
+    onDragOver: (e) => {
       e.preventDefault();
 
       const target = e.target as HTMLElement;
@@ -64,16 +61,16 @@ export const Todo: FC<TodoProps> = ({
       const y = e.clientY - rect.top;
       const ratio = y / target.clientHeight;
 
-      //TODO get rid of magic numbers, connect to CSS
-      let append: DropAreas;
-      if (ratio < .15) append = DropAreas.before
-      else if (ratio > .85) append = DropAreas.after
-      else append = DropAreas.to
+      //TODO get rid of magic numbers, bind to CSS
+      let drop: DropAreas;
+      if (ratio < .15) drop = DropAreas.before
+      else if (ratio > .85) drop = DropAreas.after
+      else drop = DropAreas.to
 
-      setDrop(append);
+      setDrop(drop);
     },
-    onDragLeave: (e: DragEvent) => setDrop(undefined),
-    onDragEnd: (e: DragEvent) => setDrop(undefined),
+    onDragLeave: () => setDrop(undefined),
+    onDragEnd: () => setDrop(undefined),
   }
 
   return (
@@ -83,20 +80,16 @@ export const Todo: FC<TodoProps> = ({
       {...data}
       {...dragAndDropHandlers}
       onClick={e => { const target = e.target as HTMLDivElement; target.focus(); }}
-      onKeyDown={e => {
-        const target = e.target as HTMLDivElement;
-        if (e.currentTarget !== target) return;
+      onKeyDown={(e) => {
         let prevent = true;
         switch (e.key) {
           case 'ArrowDown':
-            e?.preventDefault();
-            const next = target.nextElementSibling as HTMLDivElement;
-            next?.focus();
+            //TODO
+            // focusNext();
             break;
           case 'ArrowUp':
-            e?.preventDefault();
-            const prev = target.previousElementSibling as HTMLDivElement;
-            prev?.focus();
+            //TODO
+            // focusPrev();
             break;
           case 'ArrowLeft':
             if (!isCollapsed) dispatch(toggleCollapsed({ todoId: id }));
@@ -140,7 +133,7 @@ export const Todo: FC<TodoProps> = ({
       {(status === 'completed' ? '✔' : status === 'active' ? '➡' : '')}
 
       {isEditing
-        ? <Editor key='editor' id={id} text={text} />
+        ? <Editor key='editor todo__text' id={id} text={text} />
         : <div className="todo__text">{text}</div>
       }
 
